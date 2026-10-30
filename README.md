@@ -2,56 +2,59 @@
 
 A Node.js REST API deployed to an AWS EC2 Ubuntu server with automated CI/CD using GitHub Actions, AWS Systems Manager, and OpenID Connect (OIDC).
 
-This project demonstrates how to deploy and maintain a backend application on AWS, configure a reverse proxy, manage application processes, connect a cloud database, and automate deployments without storing permanent AWS credentials in GitHub.
+This project demonstrates how to deploy and maintain a backend application on AWS, configure a reverse proxy, manage application processes, connect a cloud database, build REST APIs using Express and Mongoose, and automate deployments without storing permanent AWS credentials in GitHub.
 
 ## Architecture
 
 ```text
-                     Developer
-                         |
-                         | Push to main
-                         v
-                  GitHub Repository
-                         |
-                         v
-                   GitHub Actions
-                         |
-                  +------+------+
-                  |             |
-                  v             v
-               CI Tests      AWS OIDC
-               & Build           |
-                                 v
-                           AWS IAM Role
-                                 |
-                                 v
-                        AWS Systems Manager
-                                 |
-                                 v
-                            EC2 Instance
-                           Ubuntu Server
-                                 |
-                          Git Pull & Build
-                                 |
-                                 v
-                                PM2
-                                 |
-                                 v
-                           Node.js API
-                                 |
-                                 v
-                              Nginx
-                                 |
-                                 v
-                            HTTP :80
-                                 |
-                                 v
-                            API Clients
-
+                  Developer
+                      |
+                      | Push to main
+                      v
+                 GitHub Repository
+                      |
+                      v
+                GitHub Actions
+                      |
+                +-----+------+
+                |            |
+                v            v
+             CI Tests    AWS OIDC
+             & Build          |
+                              v
+                         AWS IAM Role
+                              |
+                              v
+                     AWS Systems Manager
+                              |
+                              v
+                        EC2 Instance
+                        Ubuntu Server
+                              |
+                        Git Pull & Build
+                              |
+                              v
+                             PM2
+                              |
+                              v
                          Node.js API
                               |
                               v
-                         MongoDB Atlas
+                            Nginx
+                              |
+                              v
+                         HTTP :80
+                              |
+                              v
+                          API Clients
+
+                    Node.js API
+                          |
+                          v
+                     Mongoose
+                          |
+                          v
+                     MongoDB Atlas
 ```
 
 ## Tech Stack
@@ -63,6 +66,7 @@ This project demonstrates how to deploy and maintain a backend application on AW
 - TypeScript
 - MongoDB
 - MongoDB Atlas
+- Mongoose
 - Vitest
 - Supertest
 
@@ -71,7 +75,7 @@ This project demonstrates how to deploy and maintain a backend application on AW
 - Amazon EC2 (Ubuntu)
 - AWS IAM
 - AWS Systems Manager (SSM)
-- AWS CloudWatch / SSM Agent
+- AWS SSM Agent
 - Nginx
 - PM2
 
@@ -85,7 +89,11 @@ This project demonstrates how to deploy and maintain a backend application on AW
 ## Features
 
 - REST API built with Express.js and TypeScript.
-- MongoDB Atlas database integration.
+- MongoDB Atlas integration using Mongoose.
+- Mongoose schemas and models for structured data management.
+- Create and retrieve posts through REST API endpoints.
+- Automatic creation and management of document timestamps.
+- Basic request validation and error handling.
 - Health check and database connectivity endpoints.
 - Automated testing with Vitest and Supertest.
 - TypeScript production build.
@@ -104,6 +112,45 @@ This project demonstrates how to deploy and maintain a backend application on AW
 | GET    | `/api/health`   | Check API health            |
 | GET    | `/api/info`     | Get API information         |
 | GET    | `/api/db-check` | Check database connectivity |
+| POST   | `/api/posts`    | Create a new post           |
+| GET    | `/api/posts`    | Retrieve all posts          |
+
+### Posts API
+
+The Posts API uses a Mongoose model to manage post documents in MongoDB.
+
+**Post fields:**
+
+| Field       | Description                                  |
+| ----------- | -------------------------------------------- |
+| `_id`       | MongoDB document ID                          |
+| `title`     | Post title                                   |
+| `content`   | Post content                                 |
+| `author`    | Post author                                  |
+| `createdAt` | Automatically generated creation timestamp   |
+| `updatedAt` | Automatically updated modification timestamp |
+
+**Create a Post**
+
+`POST /api/posts`
+
+Request body:
+
+```json
+{
+  "title": "Learning AWS EC2",
+  "content": "Today I deployed my Node.js API to AWS EC2.",
+  "author": "Developer"
+}
+```
+
+Returns `201 Created` with the newly created post.
+
+**Get All Posts**
+
+`GET /api/posts`
+
+Returns `200 OK` with all posts, sorted by creation date in descending order.
 
 ## Project Structure
 
@@ -117,10 +164,15 @@ ec2-nodejs-deployment/
 │       └── deploy.yml
 │
 ├── src/
+│   ├── models/
+│   │   └── post.model.ts
 │   ├── routes/
-│   ├── ...
+│   │   └── post.routes.ts
+│   ├── app.ts
+│   ├── db.ts
 │   └── server.ts
 │
+├── tests/
 ├── .env.example
 ├── .gitignore
 ├── package.json
@@ -128,8 +180,6 @@ ec2-nodejs-deployment/
 ├── tsconfig.json
 └── README.md
 ```
-
-_The source tree illustrates the main project layout. Refer to the repository for the complete implementation._
 
 ## Local Development
 
@@ -158,7 +208,13 @@ npm install
 
 Create a `.env` file in the project root using `.env.example` as a reference.
 
-Configure your MongoDB connection string and other required application settings.
+Configure the following environment variables:
+
+```env
+PORT=3000
+MONGODB_URI=your_mongodb_connection_string
+MONGODB_DB=your_database_name
+```
 
 Never commit your `.env` file or database credentials.
 
@@ -297,7 +353,7 @@ Temporary AWS Credentials
 AWS Systems Manager
 ```
 
-The IAM trust policy restricts access to the specified GitHub repository and branch using the repository's OIDC subject claim.
+The IAM trust policy restricts access to the specified GitHub repository and `main` branch.
 
 This allows GitHub Actions to authenticate with AWS without storing long-lived access keys.
 
@@ -307,11 +363,11 @@ Configure the following repository variables under:
 
 **Settings → Secrets and variables → Actions → Variables**
 
-| Variable          | Value / Description                                        |
-| ----------------- | ---------------------------------------------------------- |
-| `AWS_REGION`      | `ap-southeast-1`                                           |
-| `AWS_ROLE_ARN`    | `arn:aws:iam::066899194881:role/GitHub-NodeJS-Deploy-Role` |
-| `EC2_INSTANCE_ID` | Target EC2 instance ID                                     |
+| Variable          | Description                    |
+| ----------------- | ------------------------------ |
+| `AWS_REGION`      | AWS deployment region          |
+| `AWS_ROLE_ARN`    | GitHub deployment IAM role ARN |
+| `EC2_INSTANCE_ID` | Target EC2 instance ID         |
 
 No permanent AWS access keys are required.
 
@@ -331,10 +387,12 @@ No permanent AWS access keys are required.
 Through this project, I gained practical experience with:
 
 - Deploying a Node.js application to AWS EC2.
+- Building REST APIs using Express.js and TypeScript.
+- Managing MongoDB documents using Mongoose schemas and models.
+- Connecting an application to MongoDB Atlas.
 - Managing Linux servers through SSH and AWS Systems Manager.
 - Configuring Nginx as a reverse proxy.
 - Managing Node.js processes using PM2.
-- Connecting an application to MongoDB Atlas.
 - Automating CI pipelines with GitHub Actions.
 - Implementing continuous deployment with AWS Systems Manager.
 - Understanding IAM roles, policies, and trust relationships.
@@ -343,6 +401,7 @@ Through this project, I gained practical experience with:
 
 ## Future Improvements
 
+- Add more API endpoints and resource management features.
 - Configure a custom domain.
 - Enable HTTPS using Let's Encrypt and Certbot.
 - Add application monitoring and alerting.
@@ -353,7 +412,7 @@ Through this project, I gained practical experience with:
 
 **Hasaranga Samarakoon**
 
-GitHub: https://github.com/HasarangaSam
+GitHub: [https://github.com/HasarangaSam](https://github.com/HasarangaSam)
 
 ---
 
