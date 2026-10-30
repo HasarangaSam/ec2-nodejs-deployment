@@ -1,5 +1,6 @@
 import express from "express";
-import { getDatabase } from "./db.js";
+import mongoose from "mongoose";
+import postRoutes from "./routes/post.routes.js";
 
 const app = express();
 
@@ -21,8 +22,7 @@ app.get("/api/info", (_req, res) => {
 
 app.get("/api/db-check", async (_req, res) => {
   try {
-    const database = await getDatabase();
-    await database.command({ ping: 1 });
+    await mongoose.connection.db?.admin().ping();
 
     res.status(200).json({
       status: "ok",
@@ -35,5 +35,7 @@ app.get("/api/db-check", async (_req, res) => {
     });
   }
 });
+
+app.use("/api/posts", postRoutes);
 
 export default app;

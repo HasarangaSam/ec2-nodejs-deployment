@@ -1,25 +1,17 @@
-import { Db, MongoClient } from "mongodb";
+import mongoose from "mongoose";
 
-let client: MongoClient | undefined;
-let database: Db | undefined;
-
-export async function getDatabase(): Promise<Db> {
-  if (database) {
-    return database;
-  }
-
+export async function connectDatabase(): Promise<void> {
   const uri = process.env.MONGODB_URI;
-  const databaseName = process.env.MONGODB_DB;
 
-  if (!uri || !databaseName) {
-    throw new Error("MongoDB environment variables are missing");
+  if (!uri) {
+    throw new Error("MONGODB_URI is missing");
   }
 
-  const newClient = new MongoClient(uri);
-  await newClient.connect();
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
 
-  client = newClient;
-  database = client.db(databaseName);
-
-  return database;
+  await mongoose.connect(uri, {
+    dbName: process.env.MONGODB_DB,
+  });
 }
