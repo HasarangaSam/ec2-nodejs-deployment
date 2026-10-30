@@ -2,7 +2,11 @@ name: Deploy to AWS EC2
 
 on:
   workflow_dispatch:
-  push:
+
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
     branches:
       - main
 
@@ -14,6 +18,12 @@ jobs:
   deploy:
     name: Deploy Node.js API
     runs-on: ubuntu-latest
+
+    # Deploy automatically only when CI succeeds.
+    # Manual deployments can still be triggered independently.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Configure AWS credentials
